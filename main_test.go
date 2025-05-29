@@ -75,6 +75,7 @@ func TestCafeCount(t *testing.T) {
 
 		handler.ServeHTTP(response, req)
 
+		assert.Equal(t, http.StatusOK, response.Code)
 		assert.Equal(t, requests[i].want, getLenOfResponse(response))
 	}
 }
@@ -111,6 +112,7 @@ func TestCafeSearch(t *testing.T) {
 
 		handler.ServeHTTP(response, req)
 
+		assert.Equal(t, http.StatusOK, response.Code)
 		assert.Equal(t, requests[i].wantCount, getLenOfResponse(response))
 	}
 }
