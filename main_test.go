@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -47,4 +48,49 @@ func TestCafeWhenOk(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, response.Code)
 	}
+}
+
+func TestCafeCount(t *testing.T) {
+	handler := http.HandlerFunc(mainHandle)
+
+	requests := []struct {
+		count int
+		want  int
+	}{
+		{0, 0},
+		{1, 1},
+		{2, 2},
+		{100, getMoscowLenFor100()}, // Should do one more request if moscow's cafe list bigger than 100
+	}
+
+	requestsLines := make([]string, len(requests))
+
+	for i := 0; i < len(requests); i++ {
+		requestsLines[i] = fmt.Sprintf("/cafe?city=moscow&count=%d", requests[i].count)
+	}
+
+	for i := 0; i < len(requests); i++ {
+		response := httptest.NewRecorder()
+		req := httptest.NewRequest("GET", requestsLines[i], nil)
+
+		handler.ServeHTTP(response, req)
+
+		assert.Equal(t, requests[i].want, getLenOfResponse(response))
+	}
+}
+
+// Because moscow's cafe list can become bigger than 100
+func getMoscowLenFor100() int {
+	if len(cafeList["moscow"]) > 100 {
+		return 100
+	}
+	return len(cafeList["moscow"])
+}
+
+func getLenOfResponse(response *httptest.ResponseRecorder) int {
+	if response.Body.String() == "" {
+		return 0
+	}
+
+	return len(strings.Split(response.Body.String(), ","))
 }
