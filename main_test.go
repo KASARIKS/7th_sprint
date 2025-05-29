@@ -63,15 +63,15 @@ func TestCafeCount(t *testing.T) {
 		{100, getMoscowLenFor100()}, // Should do one more request if moscow's cafe list bigger than 100
 	}
 
-	requestsLines := make([]string, len(requests))
+	requestLines := make([]string, len(requests))
 
 	for i := 0; i < len(requests); i++ {
-		requestsLines[i] = fmt.Sprintf("/cafe?city=moscow&count=%d", requests[i].count)
+		requestLines[i] = fmt.Sprintf("/cafe?city=moscow&count=%d", requests[i].count)
 	}
 
 	for i := 0; i < len(requests); i++ {
 		response := httptest.NewRecorder()
-		req := httptest.NewRequest("GET", requestsLines[i], nil)
+		req := httptest.NewRequest("GET", requestLines[i], nil)
 
 		handler.ServeHTTP(response, req)
 
@@ -85,6 +85,34 @@ func getMoscowLenFor100() int {
 		return 100
 	}
 	return len(cafeList["moscow"])
+}
+
+func TestCafeSearch(t *testing.T) {
+	handler := http.HandlerFunc(mainHandle)
+
+	requests := []struct {
+		search    string // передаваемое значение search
+		wantCount int    // ожидаемое количество кафе в ответе
+	}{
+		{"фасоль", 0},
+		{"кофе", 2},
+		{"вилка", 1},
+	}
+
+	requestLines := make([]string, len(requests))
+
+	for i := 0; i < len(requests); i++ {
+		requestLines[i] = fmt.Sprintf("/cafe?city=moscow&search=%s", requests[i].search)
+	}
+
+	for i := 0; i < len(requests); i++ {
+		response := httptest.NewRecorder()
+		req := httptest.NewRequest("GET", requestLines[i], nil)
+
+		handler.ServeHTTP(response, req)
+
+		assert.Equal(t, requests[i].wantCount, getLenOfResponse(response))
+	}
 }
 
 func getLenOfResponse(response *httptest.ResponseRecorder) int {
