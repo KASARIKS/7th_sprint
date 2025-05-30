@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestCafeNegative(t *testing.T) {
@@ -60,37 +61,28 @@ func TestCafeCount(t *testing.T) {
 		{0, 0},
 		{1, 1},
 		{2, 2},
-		{100, getMoscowLenFor100()}, // Should do one more request if moscow's cafe list bigger than 100
+		{100, min(len(cafeList["moscow"]), 100)}, // Should do one more request if moscow's cafe list bigger than 100
 	}
 
 	requestLines := make([]string, len(requests))
 
-	for i := 0; i < len(requests); i++ {
-		requestLines[i] = fmt.Sprintf("/cafe?city=moscow&count=%d", requests[i].count)
-	}
+	for i, request := range requests {
+		requestLines[i] = fmt.Sprintf("/cafe?city=moscow&count=%d", request.count)
 
-	for i := 0; i < len(requests); i++ {
 		response := httptest.NewRecorder()
 		req := httptest.NewRequest("GET", requestLines[i], nil)
 
 		handler.ServeHTTP(response, req)
 
-		assert.Equal(t, http.StatusOK, response.Code)
-		assert.Equal(t, requests[i].want, getLenOfResponse(response))
+		require.Equal(t, http.StatusOK, response.Code)
+		require.Equal(t, request.want, getLenOfResponse(response))
 	}
-}
-
-// Because moscow's cafe list can become bigger than 100
-func getMoscowLenFor100() int {
-	if len(cafeList["moscow"]) > 100 {
-		return 100
-	}
-	return len(cafeList["moscow"])
 }
 
 func TestCafeSearch(t *testing.T) {
 	handler := http.HandlerFunc(mainHandle)
 
+	// should changed if cafeList changes
 	requests := []struct {
 		search    string // передаваемое значение search
 		wantCount int    // ожидаемое количество кафе в ответе
@@ -102,19 +94,36 @@ func TestCafeSearch(t *testing.T) {
 
 	requestLines := make([]string, len(requests))
 
-	for i := 0; i < len(requests); i++ {
-		requestLines[i] = fmt.Sprintf("/cafe?city=moscow&search=%s", requests[i].search)
-	}
+	for i, request := range requests {
+		requestLines[i] = fmt.Sprintf("/cafe?city=moscow&search=%s", request.search)
 
-	for i := 0; i < len(requests); i++ {
 		response := httptest.NewRecorder()
 		req := httptest.NewRequest("GET", requestLines[i], nil)
 
 		handler.ServeHTTP(response, req)
 
-		assert.Equal(t, http.StatusOK, response.Code)
-		assert.Equal(t, requests[i].wantCount, getLenOfResponse(response))
+		require.Equal(t, http.StatusOK, response.Code)
+		require.Equal(t, request.wantCount, getLenOfResponse(response))
+
+		if res, wrongName := checkCafeListResponse(request.search, response); !res {
+			t.Errorf("Cafe name %s in response doesn't contains %s!\n", wrongName, request.search)
+		}
 	}
+}
+
+func checkCafeListResponse(searchParam string, response *httptest.ResponseRecorder) (bool, string) {
+	if getLenOfResponse(response) == 0 {
+		return true, ""
+	}
+
+	cafeNames := strings.Split(response.Body.String(), ",")
+	for _, name := range cafeNames {
+		if !strings.Contains(strings.ToLower(name), searchParam) {
+			return false, name
+		}
+	}
+
+	return true, ""
 }
 
 func getLenOfResponse(response *httptest.ResponseRecorder) int {
