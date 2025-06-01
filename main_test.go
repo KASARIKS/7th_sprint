@@ -1,12 +1,14 @@
 package main
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestCafeNegative(t *testing.T) {
@@ -47,4 +49,76 @@ func TestCafeWhenOk(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, response.Code)
 	}
+}
+
+func TestCafeCount(t *testing.T) {
+	handler := http.HandlerFunc(mainHandle)
+
+	requests := []struct {
+		count int
+		want  int
+	}{
+		{0, 0},
+		{1, 1},
+		{2, 2},
+		{100, min(len(cafeList["moscow"]), 100)}, // Should do one more request if moscow's cafe list bigger than 100
+	}
+
+	requestLines := make([]string, len(requests))
+
+	for i, request := range requests {
+		requestLines[i] = fmt.Sprintf("/cafe?city=moscow&count=%d", request.count)
+
+		response := httptest.NewRecorder()
+		req := httptest.NewRequest("GET", requestLines[i], nil)
+
+		handler.ServeHTTP(response, req)
+
+		require.Equal(t, http.StatusOK, response.Code)
+		require.Len(t, getSplittedResponseBody(response), request.want)
+	}
+}
+
+func TestCafeSearch(t *testing.T) {
+	handler := http.HandlerFunc(mainHandle)
+
+	// should changed if cafeList changes
+	requests := []struct {
+		search    string // передаваемое значение search
+		wantCount int    // ожидаемое количество кафе в ответе
+	}{
+		{"фасоль", 0},
+		{"кофе", 2},
+		{"вилка", 1},
+	}
+
+	requestLines := make([]string, len(requests))
+
+	for i, request := range requests {
+		requestLines[i] = fmt.Sprintf("/cafe?city=moscow&search=%s", request.search)
+
+		response := httptest.NewRecorder()
+		req := httptest.NewRequest("GET", requestLines[i], nil)
+
+		handler.ServeHTTP(response, req)
+
+		require.Equal(t, http.StatusOK, response.Code)
+		require.Len(t, getSplittedResponseBody(response), request.wantCount)
+
+		cafeList := strings.Split(response.Body.String(), ",")
+
+		if len(getSplittedResponseBody(response)) != 0 {
+			for _, name := range cafeList {
+				assert.Contains(t, strings.ToLower(name), request.search)
+			}
+		}
+	}
+}
+
+func getSplittedResponseBody(response *httptest.ResponseRecorder) []string {
+	if response.Body.String() == "" {
+		return []string{}
+	}
+
+	return strings.Split(response.Body.String(), ",")
 }
