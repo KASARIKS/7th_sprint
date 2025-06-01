@@ -75,7 +75,7 @@ func TestCafeCount(t *testing.T) {
 		handler.ServeHTTP(response, req)
 
 		require.Equal(t, http.StatusOK, response.Code)
-		require.Equal(t, request.want, getLenOfResponse(response))
+		require.Len(t, getSplittedResponseBody(response), request.want)
 	}
 }
 
@@ -103,33 +103,22 @@ func TestCafeSearch(t *testing.T) {
 		handler.ServeHTTP(response, req)
 
 		require.Equal(t, http.StatusOK, response.Code)
-		require.Equal(t, request.wantCount, getLenOfResponse(response))
+		require.Len(t, getSplittedResponseBody(response), request.wantCount)
 
-		if res, wrongName := checkCafeListResponse(request.search, response); !res {
-			t.Errorf("Cafe name %s in response doesn't contains %s!\n", wrongName, request.search)
+		cafeList := strings.Split(response.Body.String(), ",")
+
+		if len(getSplittedResponseBody(response)) != 0 {
+			for _, name := range cafeList {
+				assert.Contains(t, strings.ToLower(name), request.search)
+			}
 		}
 	}
 }
 
-func checkCafeListResponse(searchParam string, response *httptest.ResponseRecorder) (bool, string) {
-	if getLenOfResponse(response) == 0 {
-		return true, ""
-	}
-
-	cafeNames := strings.Split(response.Body.String(), ",")
-	for _, name := range cafeNames {
-		if !strings.Contains(strings.ToLower(name), searchParam) {
-			return false, name
-		}
-	}
-
-	return true, ""
-}
-
-func getLenOfResponse(response *httptest.ResponseRecorder) int {
+func getSplittedResponseBody(response *httptest.ResponseRecorder) []string {
 	if response.Body.String() == "" {
-		return 0
+		return []string{}
 	}
 
-	return len(strings.Split(response.Body.String(), ","))
+	return strings.Split(response.Body.String(), ",")
 }
